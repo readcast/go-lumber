@@ -20,6 +20,7 @@ package v2
 import (
 	"bufio"
 	"encoding/binary"
+	"encoding/json"
 	"io"
 	"net"
 	"time"
@@ -74,7 +75,7 @@ func (r *reader) ReadBatch() (*lj.Batch, error) {
 		return nil, err
 	}
 
-	events, err := r.readEvents(r.in, make([]interface{}, 0, count))
+	events, err := r.readEvents(r.in, make([]json.RawMessage, 0, count))
 	if events == nil || err != nil {
 		log.Printf("readEvents failed with: %v", err)
 		return nil, err
@@ -83,7 +84,7 @@ func (r *reader) ReadBatch() (*lj.Batch, error) {
 	return lj.NewBatch(events), nil
 }
 
-func (r *reader) readEvents(in io.Reader, events []interface{}) ([]interface{}, error) {
+func (r *reader) readEvents(in io.Reader, events []json.RawMessage) ([]json.RawMessage, error) {
 	for len(events) < cap(events) {
 		var hdr [2]byte
 		if err := readFull(in, hdr[:]); err != nil {
@@ -117,7 +118,7 @@ func (r *reader) readEvents(in io.Reader, events []interface{}) ([]interface{}, 
 	return events, nil
 }
 
-func (r *reader) readJSONEvent(in io.Reader) (interface{}, error) {
+func (r *reader) readJSONEvent(in io.Reader) (json.RawMessage, error) {
 	var hdr [8]byte
 	if err := readFull(in, hdr[:]); err != nil {
 		return nil, err
@@ -133,12 +134,11 @@ func (r *reader) readJSONEvent(in io.Reader) (interface{}, error) {
 		return nil, err
 	}
 
-	var event interface{}
-	err := r.decoder(buf, &event)
-	return event, err
+	// Copy so we don't end up overwriting in future iterations
+	return json.RawMessage(append([]byte(nil), buf...)), nil
 }
 
-func (r *reader) readCompressed(in io.Reader, events []interface{}) ([]interface{}, error) {
+func (r *reader) readCompressed(in io.Reader, events []json.RawMessage) ([]json.RawMessage, error) {
 	var hdr [4]byte
 	if err := readFull(in, hdr[:]); err != nil {
 		return nil, err
