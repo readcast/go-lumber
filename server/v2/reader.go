@@ -90,9 +90,8 @@ func (r *reader) ReadBatch() (*lj.Batch, error) {
 	// TLS connection will need to have `ClientAuth` set to `tls.RequireAndVerifyClientCert`
 	// in order for certs to be verified.
 	var clientX509Cert *x509.Certificate
-	switch r.conn.(type) {
+	switch tlsClient := r.conn.(type) {
 	case *tls.Conn:
-		tlsClient := r.conn.(*tls.Conn)
 		// VerifiedChains are the chains of verified certs that the client is presenting. We
 		// expect that the client presents exactly one verified chain, which contains exactly
 		// two certs (the client's cert, and the root CA that signed it). If this is true,
