@@ -19,6 +19,8 @@ package v2
 
 import (
 	"bufio"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"encoding/json"
 	"io"
@@ -81,7 +83,28 @@ func (r *reader) ReadBatch() (*lj.Batch, error) {
 		return nil, err
 	}
 
-	return lj.NewBatch(events), nil
+	// If the connection is over TLS and the client presented a client TLS
+	// cert, attach the cert to the Batch.
+	//
+	// Note that this does NOT check whether the TLS cert is valid - your
+	// TLS connection will need to have `ClientAuth` set to `tls.RequireAndVerifyClientCert`
+	// in order for certs to be verified.
+	var clientX509Cert *x509.Certificate
+	switch tlsClient := r.conn.(type) {
+	case *tls.Conn:
+		// VerifiedChains are the chains of verified certs that the client is presenting. We
+		// expect that the client presents exactly one verified chain, which contains exactly
+		// two certs (the client's cert, and the root CA that signed it). If this is true,
+		// then we attach the client's cert to the Batch. If it is not, we do not attach any
+		// cert.
+		verifiedChains := tlsClient.ConnectionState().VerifiedChains
+		if len(verifiedChains) == 1 && len(verifiedChains[0]) == 2 {
+			clientX509Cert = verifiedChains[0][0]
+		}
+	default:
+	}
+
+	return lj.NewBatch(events, clientX509Cert), nil
 }
 
 func (r *reader) readEvents(in io.Reader, events []json.RawMessage) ([]json.RawMessage, error) {

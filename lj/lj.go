@@ -19,6 +19,7 @@
 package lj
 
 import (
+	"crypto/x509"
 	"encoding/json"
 )
 
@@ -28,11 +29,15 @@ import (
 type Batch struct {
 	Events []json.RawMessage
 	ack    chan struct{}
+	// If the Batch was retrieved over a TLS connection and the client
+	// presented a TLS cert, store that cert on the Batch to give the Batch
+	// verified information about its provenance.
+	ClientX509Cert *x509.Certificate
 }
 
 // NewBatch creates a new ACK-able batch.
-func NewBatch(evts []json.RawMessage) *Batch {
-	return &Batch{evts, make(chan struct{})}
+func NewBatch(evts []json.RawMessage, clientX509Cert *x509.Certificate) *Batch {
+	return &Batch{evts, make(chan struct{}), clientX509Cert}
 }
 
 // ACK acknowledges a batch initiating propagation of ACK to clients.
